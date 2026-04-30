@@ -140,6 +140,14 @@ class _AppSettingsState extends State<AppSettings> {
           },
           actionTitle: 'Set'.tl,
         ).toSliver(),
+        // 修改点：在 Data Sync 下面添加了 SNI 配置入口
+        _CallbackSetting(
+          title: "Custom SNI Domains".tl,
+          callback: () async {
+            showPopUpWidget(context, const _SniSetting());
+          },
+          actionTitle: 'Set'.tl,
+        ).toSliver(),
         _SettingPartTitle(
           title: "User".tl,
           icon: Icons.person_outline,
@@ -587,6 +595,97 @@ class _WebdavSettingState extends State<_WebdavSetting> {
             )
           ],
         ).paddingHorizontal(16),
+      ),
+    );
+  }
+}
+
+// 修改点：全新添加的 _SniSetting 类，用于在 App 内管理免 SNI 域名
+class _SniSetting extends StatefulWidget {
+  const _SniSetting();
+
+  @override
+  State<_SniSetting> createState() => _SniSettingState();
+}
+
+class _SniSettingState extends State<_SniSetting> {
+  List<String> _domains = [];
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (appdata.settings['customSniDomains'] is List) {
+      _domains = List<String>.from(appdata.settings['customSniDomains']);
+    } else {
+      appdata.settings['customSniDomains'] = [];
+    }
+  }
+
+  void _saveData() {
+    appdata.settings['customSniDomains'] = _domains;
+    appdata.saveData();
+  }
+
+  void _add() {
+    String val = _controller.text.trim();
+    if (val.isNotEmpty && !_domains.contains(val)) {
+      setState(() => _domains.add(val));
+      _saveData();
+      _controller.clear();
+    }
+  }
+
+  void _remove(String val) {
+    setState(() => _domains.remove(val));
+    _saveData();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopUpWidgetScaffold(
+      title: "Custom SNI Domains".tl,
+      body: Column(
+        children: [
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: InputDecoration(
+                      labelText: "Domain (e.g. api.pica.com)".tl,
+                      border: const OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _add(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: _add,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _domains.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(_domains[index]),
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
+                    onPressed: () => _remove(_domains[index]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
