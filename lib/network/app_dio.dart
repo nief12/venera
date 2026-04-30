@@ -175,8 +175,25 @@ class AppDio with DioMixin {
 }
 
 class RHttpAdapter implements HttpClientAdapter {
-  Future<rhttp.ClientSettings> get settings async {
+  
+  // 修改点：将 get settings async 替换为带 Uri 参数的 getSettings 方法
+  Future<rhttp.ClientSettings> getSettings(Uri uri) async {
     var proxy = await getProxy();
+
+    bool isSniEnabled = appdata.settings['sni'] != false;
+    bool isVerifyCert = appdata.settings['ignoreBadCertificate'] != true;
+
+    // 获取用户在 UI 中配置的自定义 SNI 域名
+    List<String> customSniDomains = [];
+    if (appdata.settings['customSniDomains'] is List) {
+      customSniDomains = List<String>.from(appdata.settings['customSniDomains']);
+    }
+
+    // 如果当前请求的域名在免 SNI 列表中，关闭 SNI 和证书校验
+    if (customSniDomains.contains(uri.host)) {
+      isSniEnabled = false;
+      isVerifyCert = false;
+    }
 
     return rhttp.ClientSettings(
       proxySettings: proxy == null
@@ -191,8 +208,8 @@ class RHttpAdapter implements HttpClientAdapter {
       throwOnStatusCode: false,
       dnsSettings: rhttp.DnsSettings.static(overrides: _getOverrides()),
       tlsSettings: rhttp.TlsSettings(
-        sni: appdata.settings['sni'] != false,
-        verifyCertificates: appdata.settings['ignoreBadCertificate'] != true,
+        sni: isSniEnabled,
+        verifyCertificates: isVerifyCert,
       ),
     );
   }
@@ -230,7 +247,8 @@ class RHttpAdapter implements HttpClientAdapter {
     var res = await rhttp.Rhttp.request(
       method: rhttp.HttpMethod(options.method),
       url: options.uri.toString(),
-      settings: await settings,
+      // 修改点：调用带有 options.uri 的 getSettings
+      settings: await getSettings(options.uri), 
       expectBody: rhttp.HttpExpectBody.stream,
       body: requestStream == null ? null : rhttp.HttpBody.stream(requestStream),
       headers: rhttp.HttpHeaders.rawMap(
